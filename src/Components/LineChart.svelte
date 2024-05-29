@@ -1,123 +1,200 @@
 <script>
-  import { onMount } from 'svelte';
-  import { scaleBand, scaleLinear } from 'd3-scale';
-  import { select } from 'd3-selection';
-  import { csv } from 'd3-fetch';
-  import { axisBottom, axisLeft } from 'd3-axis';
-  import * as d3 from 'd3';
+  import { line, curveStep } from "d3-shape";
+  import { scaleLinear } from "d3-scale";
+  import { errorData } from "../datasets.js";
+  import { format } from "d3-format";
 
+  const formatter = format(".0%");
 
-  let width = 500;
   let height = 500;
+  let width = 500;
+  const mobile = window.innerWidth <= 700;
+  const margin = {
+    top: mobile ? 40 : 50,
+    bottom: mobile ? 10 : 25,
+    left: mobile ? 0 : 80,
+    right: mobile ? 0 : 10,
+  };
 
-  const margin = { top: 10, right: 30, bottom: 90, left: 40 };
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
+  $: xScale = scaleLinear()
+    .domain([0, 14.4])
+    .range([margin.left, width - margin.right]);
+  $: accuracyScale = scaleLinear()
+    .domain([0.0, 1])
+    .range([height - margin.bottom, margin.top]);
+  $: precisionScale = scaleLinear()
+    .domain([0.0, 1])
+    .range([height - margin.bottom, margin.top]);
 
-  let selectedCountry = 'USA'; 
+  $: accuracyPath = line()
+    .x((d) => xScale(d.thresh))
+    .y((d) => accuracyScale(d.accuracy))
+    .curve(curveStep);
 
-  onMount(() => {
-    const svg = select('#my_dataviz')
-      .append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    csv("/Users/suhanisharma/Desktop/personl-106-final/data/drinks.csv").then(data => {
-      data.forEach(d => {
-        d.beer_servings = +d.beer_servings;
-        d.spirit_servings = +d.spirit_servings;
-        d.wine_servings = +d.wine_servings;
-        d.total_litres_of_pure_alcohol = +d.total_litres_of_pure_alcohol;
-      });
-
-      console.log(data);
-
-      const x = scaleBand()
-        .range([0, innerWidth])
-        .domain(data.map(d => d.country))
-        .padding(0.2);
-
-      svg.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(axisBottom(x))
-        .selectAll('text')
-        .attr('transform', 'translate(-10,0)rotate(-45)')
-        .style('text-anchor', 'end');
-
-      const y = scaleLinear()
-        .domain([0, d3.max(data, d => d.total_litres_of_pure_alcohol)])
-        .nice()
-        .range([innerHeight, 0]);
-
-      svg.append('g')
-        .call(axisLeft(y));
-
-      svg.selectAll('.bar')
-        .data(data)
-        .enter()
-        .append('rect')
-        .attr('class', 'bar')
-        .attr('x', d => x(d.country))
-        .attr('width', x.bandwidth())
-        .attr('fill', '#69b3a2')
-        .attr('y', d => y(0))
-        .attr('height', d => innerHeight - y(0));
-
-      svg.selectAll('rect')
-        .transition()
-        .duration(800)
-        .attr('y', d => y(d.total_litres_of_pure_alcohol))
-        .attr('height', d => innerHeight - y(d.total_litres_of_pure_alcohol))
-        .delay((d, i) => i * 100);
-    }).catch(error => {
-      console.error('Error loading the CSV file:', error);
-    });
-  });
+  $: precisionPath = line()
+    .x((d) => xScale(d.thresh))
+    .y((d) => precisionScale(d.precision))
+    .curve(curveStep);
 </script>
 
+<h1 class="body-header">Responsive, Static Chart Example</h1>
+<p class="body-text">
+  This component is an example of a responsive chart built with Svelte and
+  D3.js.
+</p>
+
+<div id="error-chart" bind:offsetWidth={width} bind:offsetHeight={height}>
+  <svg
+    width={width + margin.left + margin.right}
+    height={height + margin.top + margin.bottom}
+  >
+    <!-- y-ticks -->
+    {#each [0.2, 0.4, 0.6, 0.8, 1.0] as tick}
+      <g transform={`translate(${margin.left - 5} ${accuracyScale(tick) + 0})`}>
+        <!-- svelte-ignore component-name-lowercase -->
+        <line
+          class="y-axis-line"
+          x1="0"
+          x2={width - margin.right - margin.left}
+          y1="0"
+          y2="0"
+          stroke="black"
+        ></line>
+        <text
+          class="error-axis-text"
+          y="0"
+          text-anchor="end"
+          dominant-baseline="middle">{formatter(tick)}</text
+        >
+      </g>
+    {/each}
+    <!-- axis lines -->
+    <!-- x -->
+    <!-- svelte-ignore component-name-lowercase -->
+    <line
+      class="error-axis-line"
+      y1={height - margin.bottom}
+      y2={height - margin.bottom}
+      x1={margin.left}
+      x2={width}
+      stroke="black"
+      stroke-width="2"
+    ></line>
+    <!-- y -->
+    <!-- svelte-ignore component-name-lowercase -->
+    <line
+      class="error-axis-line"
+      y1={margin.top}
+      y2={height - margin.bottom}
+      x1={margin.left}
+      x2={margin.left}
+      stroke="black"
+      stroke-width="2"
+    ></line>
+
+    <path class="outline-line" d={accuracyPath(errorData)}></path>
+    <path class="path-line" d={accuracyPath(errorData)} stroke="#c9208a"></path>
+    <path class="outline-line" d={precisionPath(errorData)}></path>
+    <path class="path-line" d={precisionPath(errorData)} stroke="#ab00d6"
+    ></path>
+
+    <!-- axis labels -->
+    <text
+      class="error-axis-label"
+      y={height + margin.bottom}
+      x={(width + margin.left) / 2}
+      text-anchor="middle">Decision Boundary Threshold</text
+    >
+    <text
+      class="error-axis-label"
+      y={margin.left / 3}
+      x={-(height / 2)}
+      text-anchor="middle"
+      transform="rotate(-90)">Score</text
+    >
+
+    <!-- x-ticks -->
+    {#each xScale.ticks() as tick}
+      <g transform={`translate(${xScale(tick) + 0} ${height - margin.bottom})`}>
+        <text class="error-axis-text" y="15" text-anchor="end">{tick}</text>
+      </g>
+    {/each}
+  </svg>
+</div>
+
 <style>
-  .bar:hover {
-    fill: orange;
+  #error-chart {
+    margin: auto;
+    max-height: 55vh;
+    width: 58%;
+    margin: 1rem auto;
   }
 
-  .axis text {
-    font-size: 12px;
+  .error-axis-text {
+    font-size: 0.9rem;
   }
 
-  .axis path,
-  .axis line {
+  .y-axis-line {
+    opacity: 0.2;
+  }
+
+  .error-axis-label {
+    text-transform: uppercase;
+    font-size: 1rem;
+  }
+
+  .path-line {
     fill: none;
-    stroke: black;
-    shape-rendering: crispEdges;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    stroke-width: 6;
+  }
+
+  .outline-line {
+    fill: none;
+    stroke: #f1f3f3;
+    stroke-width: 10;
+  }
+
+  /* ipad */
+  @media screen and (max-width: 950px) {
+    #error-chart {
+      max-height: 55vh;
+      width: 85%;
+      margin: 1rem auto;
+    }
+    .error-axis-label {
+      font-size: 0.8rem;
+    }
+    .error-axis-text {
+      font-size: 0.8rem;
+    }
+    .path-line {
+      stroke-width: 5;
+    }
+    .outline-line {
+      stroke-width: 9;
+    }
+  }
+  /* mobile */
+  @media screen and (max-width: 750px) {
+    #error-chart {
+      max-height: 55vh;
+      width: 95%;
+      margin: 1rem auto;
+    }
+
+    .error-axis-label {
+      font-size: 0.75rem;
+    }
+    .error-axis-text {
+      font-size: 0.7rem;
+    }
+    .path-line {
+      stroke-width: 4;
+    }
+    .outline-line {
+      stroke-width: 7;
+    }
   }
 </style>
-
-<h1 class="body-header">Alcohol Type Consumption by Country</h1>
-
-<p class="body-text">
-  With an understanding of how alcohol consumption began in ancient times, let us explore how it looks in modern day.
-</p>
-
-<p class="body-text">
-  <strong>Now it's your turn to explore!</strong>
-</p>
-  
-<p class="body-text">
-  <strong>Choose a country from the dropdown/type it in the box**</strong> 
-  to generate a bar chart describing different consumptions rates of different 
-  alcohol types of your chosen country.
-</p>
-
-<p class="body-text">
-  The original data set can be found from this 
-  <a href="https://github.com/fivethirtyeight/data/tree/master/alcohol-consumption">fivethirtyeight</a> link. 
-</p>
-
-<p class="body-text">
-  <strong>**</strong>For this prototype our bar chart only shows information for one hard-coded
-  country and we hope to improve the interaction of this in the final model.
-</p>
-
-<div id="my_dataviz"></div>
